@@ -1,0 +1,32 @@
+/* src/styles/PatientLogin.css */
+
+.patient-login-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.patient-login-main {
+  width: 100%;
+  max-width: 450px;
+}
+
+.signup-link {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.signup-link p {
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .login-card {
+    padding: 2rem;
+  }
+}

@@ -1,0 +1,80 @@
+/* src/styles/DoctorHomePage.css */
+
+.doctor-home-container {
+  min-height: 100vh;
+  background-color: var(--bg-secondary);
+}
+
+.doctor-home-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.welcome-section {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.welcome-section h1 {
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.welcome-section .subtitle {
+  color: var(--text-secondary);
+}
+
+.dashboard-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.placeholder-card {
+  background-color: var(--bg-primary);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
+}
+
+.placeholder-card h2 {
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.placeholder-card p {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.placeholder-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.placeholder-item {
+  padding: 1rem;
+  background-color: var(--bg-secondary);
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.doctor-home-main .btn-logout {
+  display: block;
+  margin: 2rem auto 0;
+  width: auto;
+}
+
+@media (max-width: 768px) {
+  .doctor-home-main {
+    padding: 1rem;
+  }
+
+  .dashboard-content {
+    grid-template-columns: 1fr;
+  }
+}

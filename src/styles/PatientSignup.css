@@ -1,0 +1,49 @@
+/* src/styles/PatientSignup.css */
+
+.patient-signup-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.patient-signup-main {
+  width: 100%;
+  max-width: 450px;
+}
+
+.signup-card {
+  background-color: var(--bg-primary);
+  border-radius: 1rem;
+  padding: 2.5rem;
+  box-shadow: var(--shadow-lg);
+}
+
+.signup-card h1 {
+  text-align: center;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.signup-card form {
+  margin-bottom: 1.5rem;
+}
+
+.login-link {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.login-link p {
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .signup-card {
+    padding: 2rem;
+  }
+}
