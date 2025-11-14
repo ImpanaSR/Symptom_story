@@ -30,7 +30,7 @@ function RoleSelect() {
             onClick={() => navigateTo('patient-login')}
             aria-label="Select Patient role"
           >
-            <div className="role-icon">🧑‍🦱</div>
+            <div className="role-icon">🧑</div>
             <h3>Patient</h3>
             <p>Share your symptom stories with your healthcare provider</p>
           </button>
