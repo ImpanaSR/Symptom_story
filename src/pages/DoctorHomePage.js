@@ -195,7 +195,7 @@ export default function DoctorHomePage({ onLogout }) {
             <p className="header-subtitle">Manage appointments and patient consultations</p>
           </div>
           <button className="logout-button" onClick={handleLogout}>
-            <span className="logout-icon">🚪</span>
+            <span className="logout-icon"></span>
             <span className="logout-text">Logout</span>
           </button>
         </div>
