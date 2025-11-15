@@ -12,13 +12,42 @@ const [audioChunks, setAudioChunks] = useState([]);
   const [view, setView] = useState('list');
   const [activePatient, setActivePatient] = useState(null);
 
-  const patients = [
-    { id: 1, name: 'Rajesh Kumar', slotDate: '2024-11-15', slotTime: '09:00 AM', reason: 'Fever and headache' },
-    { id: 2, name: 'Priya Sharma', slotDate: '2024-11-15', slotTime: '10:00 AM', reason: 'Chest pain' },
-    { id: 3, name: 'Amit Patel', slotDate: '2024-11-15', slotTime: '11:00 AM', reason: 'Diabetes checkup' },
-    { id: 4, name: 'Sneha Reddy', slotDate: '2024-11-15', slotTime: '02:00 PM', reason: 'Persistent cough' },
-    { id: 5, name: 'Vikram Singh', slotDate: '2024-11-15', slotTime: '03:30 PM', reason: 'Back pain' }
-  ];
+const [patients, setPatients] = useState([]);
+const [loading, setLoading] = useState(true);
+
+// Fetch real patients on component mount
+useEffect(() => {
+  fetchPatients();
+}, []);
+
+const fetchPatients = async () => {
+  try {
+    const response = await fetch('http://localhost:8000/api/doctor/patients', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      // Transform to match UI format
+      const formattedPatients = data.map((p, idx) => ({
+        id: p.id,
+        name: p.name,
+        email: p.email,
+        slotDate: new Date().toISOString().split('T')[0],
+        slotTime: `${9 + idx}:00 AM`,
+        reason: 'General Consultation'
+      }));
+      setPatients(formattedPatients);
+    }
+    setLoading(false);
+  } catch (error) {
+    console.error('Failed to fetch patients:', error);
+    setLoading(false);
+  }
+};
+
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);

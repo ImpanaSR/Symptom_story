@@ -61,6 +61,40 @@ export default function PatientHomePage({ onLogout }) {
   // State for selected past appointment in advisory view
   const [selectedPastAppointment, setSelectedPastAppointment] = useState(null);
 
+  // NEW: Add these 3 lines after your existing useState declarations
+const [consultations, setConsultations] = useState([]);
+const [latestConsultation, setLatestConsultation] = useState(null);
+const [loadingConsultations, setLoadingConsultations] = useState(true);
+
+// NEW: Fetch consultations on component mount
+useEffect(() => {
+  fetchConsultations();
+}, []);
+
+const fetchConsultations = async () => {
+  try {
+    const response = await fetch('http://localhost:8000/api/patient/my-consultations', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      setConsultations(data);
+      if (data.length > 0) {
+        setLatestConsultation(data[0]); // Most recent
+      }
+    }
+    setLoadingConsultations(false);
+  } catch (error) {
+    console.error('Failed to fetch consultations:', error);
+    setLoadingConsultations(false);
+  }
+};
+
+
+
   // Fetch analysis history from API when component mounts
   useEffect(() => {
     fetchAnalysisHistory();
@@ -310,6 +344,21 @@ export default function PatientHomePage({ onLogout }) {
           <div className="book-layout">
             {/* Left side - Booking form */}
             <section className="book-view" aria-labelledby="book-title">
+              {/* NEW: Add this follow-up alert block */}
+              {latestConsultation?.followup_date && (
+                <div className="followup-alert">
+                  <h3>📅 You have a Follow-up Appointment!</h3>
+                  <div className="followup-details">
+                    <p><strong>Date:</strong> {latestConsultation.followup_date}</p>
+                    <p><strong>Time:</strong> {latestConsultation.followup_time}</p>
+                    <p><strong>Doctor:</strong> {latestConsultation.doctor_name}</p>
+                    <p><strong>For:</strong> {latestConsultation.diagnosis}</p>
+                  </div>
+                  <p className="followup-note">
+                    ⚠️ Please arrive 15 minutes early. Bring your previous prescription.
+                  </p>
+                </div>
+              )}
               <h2 id="book-title" className="section-title">Choose a doctor</h2>
 
               {/* Doctor dropdown with search */}
@@ -515,29 +564,110 @@ export default function PatientHomePage({ onLogout }) {
             <section className="advisory-view" aria-labelledby="advisory-title">
               <h2 id="advisory-title" className="section-title">Advisory</h2>
               
-              <div className="general-advisory">
-                <div className="advisory-card">
-                  <h3 className="advisory-card-title">📋 General Instructions</h3>
-                  <ul className="general-instructions-list">
-                    <li>Bring your ID proof and insurance card</li>
-                    <li>Arrive 15 minutes before your appointment time</li>
-                    <li>Carry all previous medical reports</li>
-                    <li>List current medications you are taking</li>
-                    <li>Wear comfortable clothing for examination</li>
-                  </ul>
-                </div>
+              <div className="advisory-instructions">
+  <h3>📋 General Instructions</h3>
+  <ul className="instructions-list">
+    <li>Bring your ID proof and insurance card</li>
+    <li>Arrive 15 minutes before your appointment time</li>
+    <li>Carry all previous medical reports</li>
+    <li>List current medications you are taking</li>
+    <li>Wear comfortable clothing for examination</li>
+  </ul>
 
-                <div className="advisory-card">
-                  <h3 className="advisory-card-title">📥 Download your Prescription</h3>
-                  <p className="advisory-note">
-                    Download the prescription for your use. 
-                    It includes information about your medications.
-                  </p>
-                  <button className="download-btn">
-                    📄 Download Prescription
-                  </button>
-                </div>
-              </div>
+  {/* NEW: Real Prescription Section */}
+  {loadingConsultations ? (
+    <p>Loading your prescription...</p>
+  ) : latestConsultation ? (
+    <div className="prescription-section">
+      <h3>📥 Your Latest Prescription</h3>
+      
+      <div className="prescription-card">
+        <div className="prescription-header">
+          <div>
+            <h4>{latestConsultation.doctor_name}</h4>
+            <p className="prescription-date">
+              {new Date(latestConsultation.consultation_date).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              })}
+            </p>
+          </div>
+          <button className="btn-download" onClick={() => window.print()}>
+            📥 Download PDF
+          </button>
+        </div>
+
+        <div className="prescription-body">
+          <div className="prescription-detail">
+            <h5>🔍 Diagnosis</h5>
+            <p className="diagnosis-text">{latestConsultation.diagnosis}</p>
+            <p className="confidence-text">Confidence: {latestConsultation.diagnosis_confidence}</p>
+          </div>
+
+          <div className="prescription-detail">
+            <h5>🩺 Symptoms</h5>
+            <div className="symptoms-tags">
+              {latestConsultation.symptoms.map((symptom, idx) => (
+                <span key={idx} className="symptom-tag-item">{symptom}</span>
+              ))}
+            </div>
+          </div>
+
+          {latestConsultation.medications && latestConsultation.medications.length > 0 && (
+            <div className="prescription-detail">
+              <h5>💊 Medications</h5>
+              <table className="medications-table">
+                <thead>
+                  <tr>
+                    <th>Medicine</th>
+                    <th>Dosage</th>
+                    <th>Duration</th>
+                    <th>Instructions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestConsultation.medications.map((med, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{med.name}</strong></td>
+                      <td>{med.dosage}</td>
+                      <td>{med.duration}</td>
+                      <td>{med.instructions}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="ai-disclaimer-text">
+                ⚠️ AI-generated prescription for educational review.
+              </p>
+            </div>
+          )}
+
+          {latestConsultation.precautions && latestConsultation.precautions.length > 0 && (
+            <div className="prescription-detail">
+              <h5>⚠️ Precautions</h5>
+              <ul className="precautions-list-items">
+                {latestConsultation.precautions.map((precaution, idx) => (
+                  <li key={idx}>{precaution}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="prescription-detail">
+            <h5>📝 Summary</h5>
+            <p className="summary-text">{latestConsultation.summary}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div className="no-prescription-message">
+      <p>No consultations yet. Your prescription will appear here after your first visit.</p>
+    </div>
+  )}
+</div>
+
             </section>
 
             {/* Right side - Past appointments with prescriptions FROM API */}
