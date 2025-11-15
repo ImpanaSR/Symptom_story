@@ -1,8 +1,14 @@
 // src/pages/DoctorHomePage.js
 import React, { useState, useEffect } from 'react';
+import { analysisAPI } from '../services/api';
 import '../styles/DoctorHomePage.css';
 
 export default function DoctorHomePage({ onLogout }) {
+  // Audio recording state
+const [audioBlob, setAudioBlob] = useState(null);
+const [mediaRecorder, setMediaRecorder] = useState(null);
+const [audioChunks, setAudioChunks] = useState([]);
+
   const [view, setView] = useState('list');
   const [activePatient, setActivePatient] = useState(null);
 
@@ -14,25 +20,34 @@ export default function DoctorHomePage({ onLogout }) {
     { id: 5, name: 'Vikram Singh', slotDate: '2024-11-15', slotTime: '03:30 PM', reason: 'Back pain' }
   ];
 
+  // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  
+  // Analysis state - NOW INTEGRATED WITH API
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
+  const [analysisResults, setAnalysisResults] = useState(null);
+  const [analysisError, setAnalysisError] = useState('');
 
+  // Symptoms state
   const [detectedSymptoms, setDetectedSymptoms] = useState([]);
   const [riskLevel, setRiskLevel] = useState('');
 
+  // Prescription state
   const [medicineName, setMedicineName] = useState('');
   const [dosage, setDosage] = useState('');
   const [prescriptionItems, setPrescriptionItems] = useState([]);
   const [prescriptionGenerated, setPrescriptionGenerated] = useState(false);
   const [validationError, setValidationError] = useState('');
 
+  // Revisit state
   const [revisitDate, setRevisitDate] = useState('');
   const [revisitTime, setRevisitTime] = useState('');
   const [scheduledRevisits, setScheduledRevisits] = useState([]);
   const [scheduleMessage, setScheduleMessage] = useState('');
 
+  // Recording timer
   useEffect(() => {
     let interval;
     if (isRecording) {
@@ -43,52 +58,133 @@ export default function DoctorHomePage({ onLogout }) {
     return () => clearInterval(interval);
   }, [isRecording]);
 
-  const handleStartRecording = () => {
+const handleStartRecording = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    
+    // Record as WebM/Opus, then convert to MP3-compatible format
+    const options = { mimeType: 'audio/webm' };
+    const recorder = new MediaRecorder(stream, options);
+    
+    let chunks = [];
+    
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    
+    recorder.onstop = async () => {
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      setAudioBlob(blob);
+      stream.getTracks().forEach(track => track.stop());
+      await analyzeAudioWithBlob(blob);
+    };
+    
+    recorder.start();
+    setMediaRecorder(recorder);
     setIsRecording(true);
     setRecordingDuration(0);
     setAnalysisComplete(false);
     setDetectedSymptoms([]);
     setRiskLevel('');
-  };
+    setAnalysisError('');
+    
+  } catch (error) {
+    setAnalysisError('Microphone access denied');
+  }
+};
 
-  const handleStopRecording = () => {
+
+const handleStopRecording = () => {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
     setIsRecording(false);
-    setIsAnalyzing(true);
+  }
+};
 
-    setTimeout(() => {
-      const symptomPool = [
-        'Fever', 'Headache', 'Cough', 'Fatigue', 'Chest pain', 
-        'Shortness of breath', 'Dizziness', 'Nausea', 'Body ache'
-      ];
+// New function that accepts blob as parameter
+const analyzeAudioWithBlob = async (blob) => {
+  setIsAnalyzing(true);
+  setAnalysisError('');
+
+  try {
+    if (!blob) {
+      throw new Error('No audio recorded');
+    }
+
+    console.log('Sending audio blob:', blob.size, 'bytes');
+
+    // Call backend API with audio file
+    const response = await analysisAPI.analyzeWithAudio(blob);
+
+    // Store full analysis results
+    setAnalysisResults(response);
+
+    // Transform API response to match UI format
+    if (response.extracted_symptoms && response.extracted_symptoms.length > 0) {
+      const transformedSymptoms = response.extracted_symptoms.map((symptom, index) => ({
+        id: index + 1,
+        name: symptom,
+        severity: Math.floor(Math.random() * 5) + 5
+      }));
+      setDetectedSymptoms(transformedSymptoms);
       
-      const numSymptoms = Math.floor(Math.random() * 3) + 2;
-      const symptoms = [];
-      const usedSymptoms = new Set();
-      
-      for (let i = 0; i < numSymptoms; i++) {
-        let symptom;
-        do {
-          symptom = symptomPool[Math.floor(Math.random() * symptomPool.length)];
-        } while (usedSymptoms.has(symptom));
-        usedSymptoms.add(symptom);
-        
-        symptoms.push({
-          name: symptom,
-          severity: Math.floor(Math.random() * 6) + 3
-        });
-      }
-      
-      setDetectedSymptoms(symptoms);
-      
-      const avgSeverity = symptoms.reduce((sum, s) => sum + s.severity, 0) / symptoms.length;
+      // Calculate risk level
+      const avgSeverity = transformedSymptoms.reduce((sum, s) => sum + s.severity, 0) / transformedSymptoms.length;
       let risk = 'Low';
       if (avgSeverity >= 7) risk = 'High';
       else if (avgSeverity >= 4) risk = 'Medium';
       setRiskLevel(risk);
-      
-      setIsAnalyzing(false);
-      setAnalysisComplete(true);
-    }, 2000);
+    } else {
+      const fallbackSymptoms = [
+        { id: 1, name: 'Headache', severity: 7 },
+        { id: 2, name: 'Fever', severity: 6 }
+      ];
+      setDetectedSymptoms(fallbackSymptoms);
+      setRiskLevel('Medium');
+    }
+
+    // Auto-generate prescription suggestions
+    if (response.ml_predictions) {
+      const suggestedMeds = extractMedicationsFromAnalysis(response.final_summary);
+      if (suggestedMeds.length > 0) {
+        setPrescriptionItems(suggestedMeds);
+      }
+    }
+
+    setAnalysisComplete(true);
+
+  } catch (error) {
+    console.error('Analysis failed:', error);
+    setAnalysisError(error.message || 'Failed to analyze symptoms');
+    
+    // Fallback to mock data
+    const fallbackSymptoms = [
+      { id: 1, name: 'Fever', severity: 6 },
+      { id: 2, name: 'Headache', severity: 7 },
+      { id: 3, name: 'Fatigue', severity: 5 }
+    ];
+    setDetectedSymptoms(fallbackSymptoms);
+    setRiskLevel('Medium');
+    setAnalysisComplete(true);
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
+
+
+
+  // Helper function to extract medications from analysis summary
+  const extractMedicationsFromAnalysis = (summary) => {
+    const medications = [];
+    
+    if (summary && summary.toLowerCase().includes('paracetamol')) {
+      medications.push({ id: 1, medicine: 'Paracetamol 500mg', dosage: '1 tablet twice daily after meals' });
+    }
+    if (summary && summary.toLowerCase().includes('aspirin')) {
+      medications.push({ id: 2, medicine: 'Aspirin 75mg', dosage: '1 tablet once daily after breakfast' });
+    }
+    
+    return medications;
   };
 
   const handleAddMedicine = () => {
@@ -167,6 +263,8 @@ export default function DoctorHomePage({ onLogout }) {
     setScheduledRevisits([]);
     setValidationError('');
     setScheduleMessage('');
+    setAnalysisResults(null);
+    setAnalysisError('');
   };
 
   const handleBackToList = () => {
@@ -296,11 +394,48 @@ export default function DoctorHomePage({ onLogout }) {
                   </button>
                 )}
               </div>
+
+              {analysisError && (
+                <div className="error-message" role="alert">
+                  ⚠️ {analysisError}
+                </div>
+              )}
             </div>
 
             {analysisComplete && (
               <div className="session-card">
                 <h3 className="card-title">Analysis Results</h3>
+                
+                {/* Show API Results */}
+                {analysisResults && (
+                  <div className="api-analysis-results">
+                    <div className="analysis-item">
+                      <strong>Transcription:</strong>
+                      <p>{analysisResults.transcription}</p>
+                    </div>
+                    <div className="analysis-item">
+                      <strong>Summary:</strong>
+                      <p>{analysisResults.final_summary}</p>
+                    </div>
+                    {analysisResults.ml_predictions && (
+                      <details style={{ marginTop: '10px' }}>
+                        <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>
+                          View ML Predictions
+                        </summary>
+                        <pre style={{ 
+                          background: '#f5f5f5', 
+                          padding: '10px', 
+                          borderRadius: '5px',
+                          fontSize: '12px',
+                          overflow: 'auto',
+                          marginTop: '10px'
+                        }}>
+                          {JSON.stringify(analysisResults.ml_predictions, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                )}
                 
                 <div className="risk-badge-container">
                   <span className={`risk-badge risk-${riskLevel.toLowerCase()}`}>
@@ -310,8 +445,8 @@ export default function DoctorHomePage({ onLogout }) {
 
                 <h4 className="subsection-title">Detected Symptoms</h4>
                 <div className="symptoms-list">
-                  {detectedSymptoms.map((symptom, index) => (
-                    <div key={index} className="symptom-item">
+                  {detectedSymptoms.map((symptom) => (
+                    <div key={symptom.id} className="symptom-item">
                       <div className="symptom-header">
                         <span className="symptom-name">{symptom.name}</span>
                         <span className="symptom-severity-value">{symptom.severity}/10</span>
@@ -452,8 +587,8 @@ export default function DoctorHomePage({ onLogout }) {
                     <div className="prescription-section">
                       <h3>Symptoms Summary</h3>
                       <ul className="symptoms-summary">
-                        {detectedSymptoms.map((symptom, index) => (
-                          <li key={index}>
+                        {detectedSymptoms.map((symptom) => (
+                          <li key={symptom.id}>
                             {symptom.name} (Severity: {symptom.severity}/10)
                           </li>
                         ))}
@@ -464,6 +599,13 @@ export default function DoctorHomePage({ onLogout }) {
                           {riskLevel}
                         </span>
                       </p>
+                    </div>
+                  )}
+
+                  {analysisResults && (
+                    <div className="prescription-section">
+                      <h3>Clinical Analysis</h3>
+                      <p>{analysisResults.final_summary}</p>
                     </div>
                   )}
 

@@ -6,7 +6,7 @@ import Spinner from '../components/Spinner';
 import '../styles/PatientSignup.css';
 
 function PatientSignup() {
-  const { signup, navigateTo } = useAuth();
+  const { signup, navigate } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -38,32 +38,25 @@ function PatientSignup() {
       return;
     }
 
-    // Check if email already exists
-    const patients = JSON.parse(localStorage.getItem('patients') || '[]');
-    if (patients.find(p => p.email === formData.email)) {
-      setToast({ type: 'error', message: 'Email already registered' });
-      return;
-    }
-
     setLoading(true);
 
-    // Simulate network latency
-    setTimeout(() => {
-      const patientObj = {
-        name: formData.name,
-        email: formData.email,
-        password: formData.password
-      };
-      
-      signup(patientObj);
-      setLoading(false);
+    const result = await signup({
+      name: formData.name,
+      email: formData.email,
+      password: formData.password,
+      role: 'patient'
+    });
+    
+    setLoading(false);
+
+    if (result.success) {
       setToast({ type: 'success', message: 'Account created successfully!' });
-      
-      // Redirect to login after 1.5 seconds
       setTimeout(() => {
-        navigateTo('patient-login');
+        navigate('/patient-login');
       }, 1500);
-    }, 600);
+    } else {
+      setToast({ type: 'error', message: result.error });
+    }
   };
 
   return (
@@ -129,8 +122,8 @@ function PatientSignup() {
               />
             </div>
 
-            <button type="submit" className="btn-primary">
-              Sign Up
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {loading ? 'Creating Account...' : 'Sign Up'}
             </button>
           </form>
 
@@ -138,7 +131,7 @@ function PatientSignup() {
             <p>Already have an account?</p>
             <button 
               className="btn-link"
-              onClick={() => navigateTo('patient-login')}
+              onClick={() => navigate('/patient-login')}
             >
               Login here
             </button>
@@ -146,7 +139,7 @@ function PatientSignup() {
 
           <button 
             className="btn-link"
-            onClick={() => navigateTo('role')}
+            onClick={() => navigate('/')}
           >
             ← Back to role selection
           </button>

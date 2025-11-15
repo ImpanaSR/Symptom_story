@@ -6,15 +6,11 @@ import Spinner from '../components/Spinner';
 import '../styles/DoctorLogin.css';
 
 function DoctorLogin() {
-  const { login, navigateTo } = useAuth();
+  const { login, navigate } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
-
-  // Hardcoded doctor credentials
-  const DOCTOR_EMAIL = 'doc@example.com';
-  const DOCTOR_PASSWORD = 'password123';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,21 +23,16 @@ function DoctorLogin() {
 
     setLoading(true);
 
-    // Simulate network latency
-    setTimeout(() => {
-      // Check credentials
-      if (email === DOCTOR_EMAIL && password === DOCTOR_PASSWORD) {
-        const doctorUser = {
-          name: 'Dr. Example',
-          email: email
-        };
-        login(doctorUser, 'doctor');
-        navigateTo('doctor-home');
-      } else {
-        setToast({ type: 'error', message: 'Invalid email or password' });
-        setLoading(false);
-      }
-    }, 600);
+    // Call API login
+    const result = await login(email, password, 'doctor');
+    
+    setLoading(false);
+
+    if (result.success) {
+      navigate('/doctor-home');
+    } else {
+      setToast({ type: 'error', message: result.error || 'Invalid email or password' });
+    }
   };
 
   return (
@@ -79,14 +70,14 @@ function DoctorLogin() {
               />
             </div>
 
-            <button type="submit" className="btn-primary">
-              Login
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
 
           <button 
             className="btn-link"
-            onClick={() => navigateTo('role')}
+            onClick={() => navigate('/')}
           >
             ← Back to role selection
           </button>

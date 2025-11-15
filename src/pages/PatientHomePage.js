@@ -1,19 +1,21 @@
 // src/pages/PatientHomePage.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { analysisAPI } from '../services/api';
 import '../styles/PatientHomePage.css';
 
 /*
-  PatientHomePage
+  PatientHomePage - API INTEGRATED VERSION
   - Two tabs: BOOK A SLOT (default) and ADVISORY
   - Book flow: select doctor via dropdown with search, pick date & time, click Book
   - Shows booked slots history on the right side in BOOK A SLOT tab
   - Advisory tab shows instructions and prescriptions from past appointments
+  - NOW FETCHES DATA FROM BACKEND API
   - Accessibility: aria-pressed on interactive buttons
   - Logout functionality to return to login page
 */
 
 export default function PatientHomePage({ onLogout }) {
-  // Hardcoded sample doctors data
+  // Hardcoded sample doctors data (can be replaced with API call later)
   const doctors = [
     { id: 1, name: 'Dr. Priya Rao', specialization: 'Cardiology' },
     { id: 2, name: 'Dr. Amit Kumar', specialization: 'Neurology' },
@@ -23,65 +25,15 @@ export default function PatientHomePage({ onLogout }) {
     { id: 6, name: 'Dr. Michael Brown', specialization: 'Psychiatry' }
   ];
 
-  // Sample past appointments with prescriptions and instructions
-  const [pastAppointments] = useState([
-    {
-      id: 1,
-      doctorName: 'Dr. Priya Rao',
-      specialization: 'Cardiology',
-      date: '2024-11-01',
-      time: '10:00 AM',
-      prescription: [
-        'Aspirin 75mg - Once daily after breakfast',
-        'Atorvastatin 10mg - Once daily before bedtime',
-        'Metoprolol 25mg - Twice daily'
-      ],
-      instructions: [
-        'Monitor blood pressure daily',
-        'Avoid high-sodium foods',
-        'Light exercise for 30 minutes daily',
-        'Follow-up appointment in 2 weeks'
-      ],
-      diagnosis: 'Hypertension management'
-    },
-    {
-      id: 2,
-      doctorName: 'Dr. Amit Kumar',
-      specialization: 'Neurology',
-      date: '2024-10-28',
-      time: '02:30 PM',
-      prescription: [
-        'Paracetamol 500mg - As needed for headache',
-        'Vitamin B12 supplement - Once daily'
-      ],
-      instructions: [
-        'Maintain regular sleep schedule (7-8 hours)',
-        'Reduce screen time before bed',
-        'Stay hydrated - drink at least 8 glasses of water',
-        'Avoid caffeine after 4 PM'
-      ],
-      diagnosis: 'Migraine and vitamin deficiency'
-    },
-    {
-      id: 3,
-      doctorName: 'Dr. Emily Chen',
-      specialization: 'Dermatology',
-      date: '2024-10-15',
-      time: '11:00 AM',
-      prescription: [
-        'Moisturizing cream - Apply twice daily',
-        'Sunscreen SPF 50+ - Apply before going out',
-        'Antihistamine tablet - Once daily if itching persists'
-      ],
-      instructions: [
-        'Avoid direct sun exposure between 10 AM - 4 PM',
-        'Use gentle, fragrance-free soap',
-        'Pat dry skin instead of rubbing',
-        'Keep skin moisturized at all times'
-      ],
-      diagnosis: 'Eczema treatment'
-    }
-  ]);
+  // State for past appointments - NOW FETCHED FROM API
+  const [pastAppointments, setPastAppointments] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+
+  // State for symptom analysis results
+  const [analysisResults, setAnalysisResults] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState('');
 
   // State for active tab: 'book' or 'advisory'
   const [activeTab, setActiveTab] = useState('book');
@@ -109,6 +61,116 @@ export default function PatientHomePage({ onLogout }) {
   // State for selected past appointment in advisory view
   const [selectedPastAppointment, setSelectedPastAppointment] = useState(null);
 
+  // Fetch analysis history from API when component mounts
+  useEffect(() => {
+    fetchAnalysisHistory();
+  }, []);
+
+  // Function to fetch analysis history from backend
+  const fetchAnalysisHistory = async () => {
+    setLoadingHistory(true);
+    setHistoryError('');
+    
+    try {
+      const history = await analysisAPI.getHistory();
+      
+      // Transform API response to match UI format
+      const transformedHistory = history.map((item, index) => ({
+        id: item.id || index + 1,
+        doctorName: 'AI Analysis', // Since backend doesn't have doctor info
+        specialization: 'Automated Diagnosis',
+        date: new Date(item.created_at || Date.now()).toISOString().split('T')[0],
+        time: new Date(item.created_at || Date.now()).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        prescription: extractPrescriptions(item.llm_final_summary),
+        instructions: extractInstructions(item.llm_final_summary),
+        diagnosis: item.ml_results?.top_disease || 'Symptom Analysis',
+        rawData: item // Store original data for reference
+      }));
+      
+      setPastAppointments(transformedHistory);
+    } catch (error) {
+      console.error('Failed to fetch history:', error);
+      setHistoryError('Failed to load analysis history');
+      
+      // Fallback to sample data if API fails
+      setPastAppointments([
+        {
+          id: 1,
+          doctorName: 'Dr. Priya Rao',
+          specialization: 'Cardiology',
+          date: '2024-11-01',
+          time: '10:00 AM',
+          prescription: [
+            'Aspirin 75mg - Once daily after breakfast',
+            'Atorvastatin 10mg - Once daily before bedtime',
+            'Metoprolol 25mg - Twice daily'
+          ],
+          instructions: [
+            'Monitor blood pressure daily',
+            'Avoid high-sodium foods',
+            'Light exercise for 30 minutes daily',
+            'Follow-up appointment in 2 weeks'
+          ],
+          diagnosis: 'Hypertension management'
+        }
+      ]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Helper function to extract prescriptions from summary
+  const extractPrescriptions = (summary) => {
+    if (!summary) return ['Consult doctor for prescription'];
+    
+    // Simple extraction logic - can be enhanced
+    const prescriptionMatch = summary.match(/medication[s]?:([^.]*)/i);
+    if (prescriptionMatch) {
+      return prescriptionMatch[1].split(',').map(p => p.trim());
+    }
+    
+    return ['Refer to detailed analysis for medication recommendations'];
+  };
+
+  // Helper function to extract instructions from summary
+  const extractInstructions = (summary) => {
+    if (!summary) return ['Follow up with healthcare provider'];
+    
+    // Simple extraction logic - can be enhanced
+    const lines = summary.split('.').filter(line => line.trim().length > 0);
+    return lines.slice(0, 4).map(line => line.trim());
+  };
+
+  // Function to trigger symptom analysis
+  const handleSymptomAnalysis = async () => {
+    setAnalyzing(true);
+    setAnalysisError('');
+    
+    try {
+      const response = await analysisAPI.analyze({
+        // You can add audio_data here when implementing audio recording
+      });
+      
+      setAnalysisResults(response);
+      
+      // Refresh history after new analysis
+      await fetchAnalysisHistory();
+      
+      // Show success message
+      setBookingMessage('Symptom analysis completed successfully!');
+      setTimeout(() => setBookingMessage(''), 3000);
+      
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      setAnalysisError(error.message || 'Failed to analyze symptoms');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   // Filter doctors based on search term
   const filteredDoctors = doctors.filter(doctor =>
     doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -121,8 +183,8 @@ export default function PatientHomePage({ onLogout }) {
   // Handle doctor selection from dropdown
   const handleDoctorSelect = (doctor) => {
     setSelectedDoctorId(doctor.id);
-    setSearchTerm(''); // Clear search after selection
-    setIsDropdownOpen(false); // Close dropdown
+    setSearchTerm('');
+    setIsDropdownOpen(false);
     setBookingMessage('');
     setBookingError('');
   };
@@ -130,7 +192,7 @@ export default function PatientHomePage({ onLogout }) {
   // Handle search input change
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
-    setIsDropdownOpen(true); // Open dropdown when typing
+    setIsDropdownOpen(true);
   };
 
   // Handle dropdown toggle
@@ -140,25 +202,21 @@ export default function PatientHomePage({ onLogout }) {
 
   // Handle booking button click
   const handleBook = () => {
-    // Clear previous messages
     setBookingMessage('');
     setBookingError('');
 
-    // Validate doctor selection
     if (!selectedDoctorId) {
       setBookingError('Please select a doctor before booking.');
       return;
     }
 
-    // Validate date and time
     if (!appointmentDate || !appointmentTime) {
       setBookingError('Please select both date and time.');
       return;
     }
 
-    // Create new booking object
     const newBooking = {
-      id: Date.now(), // Simple unique ID
+      id: Date.now(),
       doctorId: selectedDoctorId,
       doctorName: selectedDoctor.name,
       specialization: selectedDoctor.specialization,
@@ -167,13 +225,9 @@ export default function PatientHomePage({ onLogout }) {
       bookedAt: new Date().toLocaleString()
     };
 
-    // Add to booked slots
     setBookedSlots([newBooking, ...bookedSlots]);
-
-    // Show success message
     setBookingMessage(`Booked with ${selectedDoctor.name} on ${appointmentDate} at ${appointmentTime}`);
-
-    // Clear date and time but keep doctor selected
+    
     setAppointmentDate('');
     setAppointmentTime('');
   };
@@ -203,7 +257,6 @@ export default function PatientHomePage({ onLogout }) {
   // Handle logout
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to logout?')) {
-      // Call the onLogout callback if provided
       if (onLogout) {
         onLogout();
       }
@@ -266,7 +319,6 @@ export default function PatientHomePage({ onLogout }) {
                 </label>
                 
                 <div className="dropdown-wrapper">
-                  {/* Selected doctor display / Search input */}
                   <div className="dropdown-input-wrapper">
                     {selectedDoctor && !isDropdownOpen ? (
                       <div className="selected-doctor-display">
@@ -307,7 +359,6 @@ export default function PatientHomePage({ onLogout }) {
                     </button>
                   </div>
 
-                  {/* Dropdown list */}
                   {isDropdownOpen && (
                     <ul className="dropdown-list" role="listbox">
                       {filteredDoctors.length > 0 ? (
@@ -366,6 +417,21 @@ export default function PatientHomePage({ onLogout }) {
                 </button>
               </div>
 
+              {/* NEW: Symptom Analysis Button */}
+              <div className="book-actions" style={{ marginTop: '20px' }}>
+                <button 
+                  className="book-button" 
+                  onClick={handleSymptomAnalysis}
+                  disabled={analyzing}
+                  style={{ 
+                    backgroundColor: analyzing ? '#ccc' : '#28a745',
+                    cursor: analyzing ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {analyzing ? 'Analyzing Symptoms...' : '🔬 Analyze Symptoms (AI)'}
+                </button>
+              </div>
+
               {/* Status messages */}
               {bookingError && (
                 <div className="message message-error" role="alert">
@@ -377,11 +443,25 @@ export default function PatientHomePage({ onLogout }) {
                   {bookingMessage}
                 </div>
               )}
+              {analysisError && (
+                <div className="message message-error" role="alert">
+                  {analysisError}
+                </div>
+              )}
 
               {/* Selected doctor display */}
               <div className="selected-info">
                 Selected: {selectedDoctor ? selectedDoctor.name : 'No doctor selected'}
               </div>
+
+              {/* Display latest analysis results */}
+              {analysisResults && (
+                <div className="message message-success" style={{ marginTop: '20px', textAlign: 'left' }}>
+                  <h4>Latest Analysis Results:</h4>
+                  <p><strong>Symptoms:</strong> {analysisResults.extracted_symptoms?.join(', ')}</p>
+                  <p><strong>Summary:</strong> {analysisResults.final_summary}</p>
+                </div>
+              )}
             </section>
 
             {/* Right side - Booked slots */}
@@ -460,19 +540,26 @@ export default function PatientHomePage({ onLogout }) {
               </div>
             </section>
 
-            {/* Right side - Past appointments with prescriptions */}
+            {/* Right side - Past appointments with prescriptions FROM API */}
             <aside className="prescriptions-panel" aria-labelledby="prescriptions-title">
               <h3 id="prescriptions-title" className="prescriptions-title">
                 Past Appointments & Prescriptions
+                {loadingHistory && <span style={{ fontSize: '12px', marginLeft: '10px' }}>Loading...</span>}
               </h3>
 
-              {pastAppointments.length === 0 ? (
+              {historyError && (
+                <div className="message message-error" style={{ margin: '10px' }}>
+                  {historyError}
+                </div>
+              )}
+
+              {pastAppointments.length === 0 && !loadingHistory ? (
                 <div className="no-prescriptions">
                   <p>No past appointments found.</p>
+                  <p className="no-bookings-hint">Complete a symptom analysis to see your history.</p>
                 </div>
               ) : (
                 <div className="prescriptions-container">
-                  {/* List of past appointments */}
                   <ul className="past-appointments-list">
                     {pastAppointments.map(appointment => (
                       <li 
@@ -492,7 +579,6 @@ export default function PatientHomePage({ onLogout }) {
                     ))}
                   </ul>
 
-                  {/* Display selected appointment details */}
                   {selectedPastAppointment && (
                     <div className="prescription-details">
                       <div className="prescription-header">
@@ -537,6 +623,22 @@ export default function PatientHomePage({ onLogout }) {
                           ))}
                         </ul>
                       </div>
+
+                      {/* Show raw ML results if available */}
+                      {selectedPastAppointment.rawData && (
+                        <div className="prescription-section">
+                          <h5 className="prescription-section-title">🔬 ML Analysis</h5>
+                          <pre style={{ 
+                            background: '#f5f5f5', 
+                            padding: '10px', 
+                            borderRadius: '5px',
+                            fontSize: '12px',
+                            overflow: 'auto'
+                          }}>
+                            {JSON.stringify(selectedPastAppointment.rawData.ml_results, null, 2)}
+                          </pre>
+                        </div>
+                      )}
                     </div>
                   )}
 

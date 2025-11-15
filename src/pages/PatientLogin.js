@@ -6,7 +6,7 @@ import Spinner from '../components/Spinner';
 import '../styles/PatientLogin.css';
 
 function PatientLogin() {
-  const { login, navigateTo } = useAuth();
+  const { login, navigate } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,24 +23,16 @@ function PatientLogin() {
 
     setLoading(true);
 
-    // Simulate network latency
-    setTimeout(() => {
-      // Check against localStorage stored patients
-      const patients = JSON.parse(localStorage.getItem('patients') || '[]');
-      const patient = patients.find(p => p.email === email && p.password === password);
+    // Call API login
+    const result = await login(email, password, 'patient');
+    
+    setLoading(false);
 
-      if (patient) {
-        const patientUser = {
-          name: patient.name,
-          email: patient.email
-        };
-        login(patientUser, 'patient');
-        navigateTo('patient-home');
-      } else {
-        setToast({ type: 'error', message: 'Invalid email or password' });
-        setLoading(false);
-      }
-    }, 600);
+    if (result.success) {
+      navigate('/patient-home');
+    } else {
+      setToast({ type: 'error', message: result.error || 'Invalid email or password' });
+    }
   };
 
   return (
@@ -78,8 +70,8 @@ function PatientLogin() {
               />
             </div>
 
-            <button type="submit" className="btn-primary">
-              Login
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
 
@@ -87,7 +79,7 @@ function PatientLogin() {
             <p>Don't have an account?</p>
             <button 
               className="btn-link"
-              onClick={() => navigateTo('patient-signup')}
+              onClick={() => navigate('/patient-signup')}
             >
               Sign up here
             </button>
@@ -95,7 +87,7 @@ function PatientLogin() {
 
           <button 
             className="btn-link"
-            onClick={() => navigateTo('role')}
+            onClick={() => navigate('/')}
           >
             ← Back to role selection
           </button>

@@ -1,43 +1,49 @@
 // src/pages/RoleSelect.js
+
 import React from 'react';
-import { useAuth } from '../context/AuthContext';
-import '../styles/RoleSelect.css';
+import { useNavigate } from 'react-router-dom';
+import '../styles/RoleSelect.css'; // This import is correct!
 
-function RoleSelect() {
-  const { navigateTo } = useAuth();
+const RoleSelect = () => {
+  const navigate = useNavigate(); 
 
+  const handlePatientClick = () => {
+    navigate('/patient-login');
+  };
+
+  const handleDoctorClick = () => {
+    navigate('/doctor-login');
+  };
+
+  // This HTML structure now MATCHES your CSS file
   return (
     <div className="role-select-container">
+      
+      {/* 1. Use 'role-select-main' to wrap the content */}
       <main className="role-select-main">
-        <h1>Symptom Storyteller</h1>
-        <h2>Are you a Doctor or a Patient?</h2>
         
-        <div className="role-cards">
-          {/* Doctor role card */}
-          <button
-            className="role-card"
-            onClick={() => navigateTo('doctor-login')}
-            aria-label="Select Doctor role"
-          >
-            <div className="role-icon">👨‍⚕️</div>
-            <h3>Doctor</h3>
-            <p>Access patient symptom stories and medical records</p>
-          </button>
-
-          {/* Patient role card */}
-          <button
-            className="role-card"
-            onClick={() => navigateTo('patient-login')}
-            aria-label="Select Patient role"
-          >
-            <div className="role-icon">🧑</div>
+        <h2>Welcome to Symptom Storyteller</h2>
+        <p>Please select your role to continue</p>
+        
+        {/* 2. Use 'role-cards' for the grid layout */}
+        <div className="role-cards"> 
+        
+          {/* 3. Use 'role-card' for the button styling */}
+          <button onClick={handlePatientClick} className="role-card patient">
+            {/* You can add icons here later if you want */}
             <h3>Patient</h3>
-            <p>Share your symptom stories with your healthcare provider</p>
+            <p>Login or Signup to get an analysis.</p>
+          </button>
+          
+          {/* 4. Use 'role-card' for the button styling */}
+          <button onClick={handleDoctorClick} className="role-card doctor">
+            <h3>Doctor</h3>
+            <p>Login to view patient dashboards.</p>
           </button>
         </div>
       </main>
     </div>
   );
-}
+};
 
 export default RoleSelect;

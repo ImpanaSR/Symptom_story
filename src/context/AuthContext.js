@@ -1,5 +1,7 @@
 // src/context/AuthContext.js
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -12,54 +14,82 @@ export const useAuth = () => {
   return context;
 };
 
-export const AuthProvider = ({ children, navigateTo }) => {
+export const AuthProvider = ({ children }) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Check localStorage on mount to restore patient session
+  // Check for existing token on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    const savedRole = localStorage.getItem('currentRole');
-    if (savedUser && savedRole) {
-      setUser(JSON.parse(savedUser));
-      setRole(savedRole);
-    }
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      const savedRole = localStorage.getItem('currentRole');
+      
+      if (token) {
+        try {
+          const userData = await authAPI.getMe();
+          setUser(userData);
+          setRole(savedRole || userData.role);
+        } catch (error) {
+          console.error('Auth check failed:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('currentRole');
+        }
+      }
+      setLoading(false);
+    };
+    
+    checkAuth();
   }, []);
 
-  // Login function - stores user and role
-  const login = (userObj, userRole) => {
-    setUser(userObj);
-    setRole(userRole);
-    // Persist patient login to localStorage
-    if (userRole === 'patient') {
-      localStorage.setItem('currentUser', JSON.stringify(userObj));
+  // Login function - calls backend API
+  const login = async (username, password, userRole) => {
+    try {
+      const response = await authAPI.login(username, password);
+      
+      // Store token
+      localStorage.setItem('token', response.access_token);
       localStorage.setItem('currentRole', userRole);
+      
+      // Fetch user data
+      const userData = await authAPI.getMe();
+      setUser(userData);
+      setRole(userRole);
+      
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
     }
   };
 
-  // Logout function - clears auth and returns to role select
+  // Logout function
   const logout = () => {
     setUser(null);
     setRole(null);
-    localStorage.removeItem('currentUser');
+    localStorage.removeItem('token');
     localStorage.removeItem('currentRole');
-    navigateTo('role');
+    navigate('/');
   };
 
-  // Signup function - saves patient to localStorage
-  const signup = (patientObj) => {
-    const patients = JSON.parse(localStorage.getItem('patients') || '[]');
-    patients.push(patientObj);
-    localStorage.setItem('patients', JSON.stringify(patients));
+  // Signup function - calls backend API
+  const signup = async (userData) => {
+    try {
+      await authAPI.signup(userData);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   };
 
   const value = {
     user,
     role,
+    loading,
     login,
     logout,
     signup,
-    navigateTo
+    navigate  // Now using navigate from React Router
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
