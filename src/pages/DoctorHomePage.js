@@ -144,12 +144,26 @@ const analyzeAudioWithBlob = async (blob) => {
     }
 
     // Auto-generate prescription suggestions
-    if (response.ml_predictions) {
-      const suggestedMeds = extractMedicationsFromAnalysis(response.final_summary);
-      if (suggestedMeds.length > 0) {
-        setPrescriptionItems(suggestedMeds);
-      }
+    // if (response.ml_predictions) {
+    //   const suggestedMeds = extractMedicationsFromAnalysis(response.final_summary);
+    //   if (suggestedMeds.length > 0) {
+    //     setPrescriptionItems(suggestedMeds);
+    //   }
+    // }
+
+    // ========== ADD THIS CODE HERE (BEFORE setAnalysisComplete) ==========
+    // Auto-populate prescription from AI
+    if (response.ai_prescription && response.ai_prescription.medications) {
+      const aiMeds = response.ai_prescription.medications.map((med, idx) => ({
+        id: Date.now() + idx,
+        medicine: med.name,
+        dosage: `${med.dosage} - ${med.duration} - ${med.instructions}`
+      }));
+      setPrescriptionItems(aiMeds);
+      console.log('✅ Auto-populated', aiMeds.length, 'medications');
     }
+    // ========== END NEW CODE ==========
+
 
     setAnalysisComplete(true);
 
